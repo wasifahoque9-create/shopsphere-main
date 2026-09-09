@@ -26,12 +26,8 @@ export default function ProductsPage() {
             need, all in one place.
           </p>
 
-          {/* Breadcrumb */}
-          <div className="mt-8 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            <span className="text-white">Home</span>
-            <span>/</span>
-            <span className="text-blue-300">Products</span>
-          </div>
+         
+        
         </div>
 
         {/* Bottom curve transition into content */}

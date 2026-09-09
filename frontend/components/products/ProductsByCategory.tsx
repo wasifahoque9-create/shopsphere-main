@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { API_BASE, catalogApi } from "@/lib/api";
 import type { Product } from "@/types";
@@ -28,9 +28,7 @@ type CategoryResponse = {
   data?: MainCategory[] | { data?: MainCategory[] };
 };
 
-function extractCategories(
-  response: unknown,
-): MainCategory[] {
+function extractCategories(response: unknown): MainCategory[] {
   if (Array.isArray(response)) {
     return response as MainCategory[];
   }
@@ -40,9 +38,7 @@ function extractCategories(
     typeof response === "object" &&
     "data" in response
   ) {
-    const firstData = (
-      response as CategoryResponse
-    ).data;
+    const firstData = (response as CategoryResponse).data;
 
     if (Array.isArray(firstData)) {
       return firstData;
@@ -53,9 +49,7 @@ function extractCategories(
       typeof firstData === "object" &&
       "data" in firstData
     ) {
-      const secondData = (
-        firstData as { data?: unknown }
-      ).data;
+      const secondData = (firstData as { data?: unknown }).data;
 
       if (Array.isArray(secondData)) {
         return secondData as MainCategory[];
@@ -67,36 +61,139 @@ function extractCategories(
 }
 
 export default function ProductsByCategory() {
-  const [categories, setCategories] = useState<
-    MainCategory[]
-  >([]);
-
+  const [categories, setCategories] = useState<MainCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] =
     useState<number | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  const [products, setProducts] = useState<Product[]>(
-    [],
-  );
-
-  const [categoriesLoading, setCategoriesLoading] =
-    useState(true);
-
-  const [productsLoading, setProductsLoading] =
-    useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   const [error, setError] = useState("");
 
   /*
    * ------------------------------------------------------------
+   * Category carousel
+   * ------------------------------------------------------------
+   */
+  const categoryScrollRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  /*
+   * ------------------------------------------------------------
+   * Mouse drag scrolling
+   * ------------------------------------------------------------
+   */
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartScrollLeft = useRef(0);
+
+  /*
+   * ------------------------------------------------------------
+   * Check category carousel scroll position
+   * ------------------------------------------------------------
+   */
+  const updateScrollButtons = useCallback(() => {
+    const element = categoryScrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const maxScrollLeft =
+      element.scrollWidth - element.clientWidth;
+
+    setCanScrollLeft(element.scrollLeft > 2);
+
+    setCanScrollRight(
+      element.scrollLeft < maxScrollLeft - 2,
+    );
+  }, []);
+
+  /*
+   * ------------------------------------------------------------
+   * Scroll category tabs
+   * ------------------------------------------------------------
+   */
+  const scrollCategories = (
+    direction: "left" | "right",
+  ) => {
+    const element = categoryScrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const scrollAmount = Math.max(
+      element.clientWidth * 0.65,
+      220,
+    );
+
+    element.scrollBy({
+      left:
+        direction === "left"
+          ? -scrollAmount
+          : scrollAmount,
+      behavior: "smooth",
+    });
+  };
+
+  /*
+   * ------------------------------------------------------------
+   * Mouse drag handlers
+   * ------------------------------------------------------------
+   */
+  const handleMouseDown = (
+    event: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    const element = categoryScrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    isDragging.current = true;
+    dragStartX.current = event.pageX;
+    dragStartScrollLeft.current = element.scrollLeft;
+
+    element.classList.remove("scroll-smooth");
+    element.classList.add("cursor-grabbing");
+  };
+
+  const handleMouseMove = (
+    event: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    const element = categoryScrollRef.current;
+
+    if (!element || !isDragging.current) {
+      return;
+    }
+
+    const distance =
+      event.pageX - dragStartX.current;
+
+    element.scrollLeft =
+      dragStartScrollLeft.current - distance;
+  };
+
+  const stopDragging = () => {
+    const element = categoryScrollRef.current;
+
+    isDragging.current = false;
+
+    if (element) {
+      element.classList.remove("cursor-grabbing");
+      element.classList.add("scroll-smooth");
+    }
+  };
+
+  /*
+   * ------------------------------------------------------------
    * Load MAIN categories dynamically
    * ------------------------------------------------------------
-   *
-   * The backend returns:
-   *
-   * Main Category
-   *    └── subcategories
-   *
-   * Nothing is hardcoded here.
    */
   useEffect(() => {
     let isMounted = true;
@@ -128,21 +225,17 @@ export default function ProductsByCategory() {
           );
         }
 
-        const categoryList =
-          extractCategories(data);
+        const categoryList = extractCategories(data);
 
         /*
          * Only top-level categories are MAIN categories.
-         *
-         * parent_id === null
          */
-        const mainCategories =
-          categoryList.filter(
-            (category) =>
-              category.parent_id === null ||
-              category.parent_id === undefined ||
-              category.parent_id === 0,
-          );
+        const mainCategories = categoryList.filter(
+          (category) =>
+            category.parent_id === null ||
+            category.parent_id === undefined ||
+            category.parent_id === 0,
+        );
 
         if (!isMounted) {
           return;
@@ -151,14 +244,14 @@ export default function ProductsByCategory() {
         setCategories(mainCategories);
 
         /*
-         * Automatically select the first main category.
+         * Automatically select the first category.
          */
         if (mainCategories.length > 0) {
-          setActiveCategoryId(
-            (currentId) =>
-              currentId ??
-              mainCategories[0].id,
-          );
+          setActiveCategoryId((currentId) => {
+            return (
+              currentId ?? mainCategories[0].id
+            );
+          });
         } else {
           setActiveCategoryId(null);
           setProducts([]);
@@ -214,18 +307,8 @@ export default function ProductsByCategory() {
 
   /*
    * ------------------------------------------------------------
-   * Load products for the selected MAIN category
+   * Load products for selected category
    * ------------------------------------------------------------
-   *
-   * The backend ProductController already supports:
-   *
-   * /categories/{main-category-slug}/products
-   *
-   * and includes products assigned to that main
-   * category's subcategories.
-   *
-   * Therefore we do NOT need to hardcode
-   * subcategory slugs here.
    */
   useEffect(() => {
     let isMounted = true;
@@ -282,19 +365,61 @@ export default function ProductsByCategory() {
 
   /*
    * ------------------------------------------------------------
+   * Update carousel buttons
+   * ------------------------------------------------------------
+   */
+  useEffect(() => {
+    updateScrollButtons();
+
+    const element = categoryScrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const handleScroll = () => {
+      updateScrollButtons();
+    };
+
+    element.addEventListener(
+      "scroll",
+      handleScroll,
+      { passive: true },
+    );
+
+    window.addEventListener(
+      "resize",
+      updateScrollButtons,
+    );
+
+    return () => {
+      element.removeEventListener(
+        "scroll",
+        handleScroll,
+      );
+
+      window.removeEventListener(
+        "resize",
+        updateScrollButtons,
+      );
+    };
+  }, [categories, updateScrollButtons]);
+
+  /*
+   * ------------------------------------------------------------
    * Loading state
    * ------------------------------------------------------------
    */
   if (categoriesLoading) {
     return (
       <section className="w-full overflow-hidden bg-[#EEF2FF] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-        <div className="mx-auto max-w-7xl overflow-hidden">
+        <div className="mx-auto max-w-7xl">
           <div className="mb-8">
             <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600 sm:text-sm sm:tracking-[0.35em]">
               Explore Our Technology
             </p>
 
-            <h2 className="mt-3 text-3xl font-black leading-tight text-[#121358] sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-black leading-tight text-[#121358] sm:text-4xl lg:text-5xl">
               Products By Category
             </h2>
           </div>
@@ -309,19 +434,19 @@ export default function ProductsByCategory() {
 
   /*
    * ------------------------------------------------------------
-   * No main categories
+   * No categories
    * ------------------------------------------------------------
    */
   if (categories.length === 0) {
     return (
       <section className="w-full overflow-hidden bg-[#EEF2FF] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-        <div className="mx-auto max-w-7xl overflow-hidden">
+        <div className="mx-auto max-w-7xl">
           <div className="mb-8">
             <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600 sm:text-sm sm:tracking-[0.35em]">
               Explore Our Technology
             </p>
 
-            <h2 className="mt-3 text-3xl font-black leading-tight text-[#121358] sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-black leading-tight text-[#121358] sm:text-4xl lg:text-5xl">
               Products By Category
             </h2>
           </div>
@@ -343,43 +468,114 @@ export default function ProductsByCategory() {
 
   return (
     <section className="w-full overflow-hidden bg-[#EEF2FF] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-7xl overflow-hidden">
+      <div className="mx-auto max-w-7xl">
+
         {/* Header */}
-        <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600 sm:text-sm sm:tracking-[0.35em]">
-              Explore Our Technology
-            </p>
+        <div className="mb-8">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600 sm:text-sm sm:tracking-[0.35em]">
+            Explore Our Technology
+          </p>
 
-            <h2 className="mt-3 text-3xl font-black leading-tight text-[#121358] sm:text-4xl">
-              Products By Category
-            </h2>
-          </div>
+          <h2 className="mt-3 text-3xl font-black leading-tight text-[#121358] sm:text-4xl lg:text-5xl">
+            Products By Category
+          </h2>
+        </div>
 
-          {/* Dynamic category tabs */}
-          <div className="w-full rounded-2xl border border-slate-200 bg-white p-2 shadow-sm xl:max-w-3xl">
-            <div className="flex gap-2 overflow-x-auto">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() =>
-                    setActiveCategoryId(
-                      category.id,
-                    )
-                  }
-                  className={`min-w-max flex-1 rounded-xl px-4 py-3 text-center text-sm font-black transition ${
-                    activeCategoryId ===
-                    category.id
-                      ? "bg-[#121358] text-white shadow-md"
-                      : "text-slate-500 hover:bg-slate-100 hover:text-[#121358]"
-                  }`}
-                >
-                  {category.name}
-                </button>
-              ))}
+        {/* =====================================================
+            CATEGORY CAROUSEL
+            ===================================================== */}
+        <div className="relative mb-10 w-full">
+
+          {/* Left Arrow */}
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() =>
+                scrollCategories("left")
+              }
+              aria-label="Scroll categories left"
+              className="absolute left-1 top-1/2 z-20 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-[#121358] shadow-md transition hover:bg-[#121358] hover:text-white sm:left-2 sm:flex sm:h-10 sm:w-10"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className="h-4 w-4 sm:h-5 sm:w-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+          )}
+
+          {/* Category Menu */}
+          <div className="w-full rounded-[20px] border border-slate-200 bg-white p-2 shadow-sm sm:p-2.5">
+            <div
+              ref={categoryScrollRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={stopDragging}
+              onMouseLeave={stopDragging}
+              className="flex cursor-grab gap-2 overflow-x-auto scroll-smooth px-9 py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-10"
+            >
+              {categories.map((category) => {
+                const isActive =
+                  activeCategoryId ===
+                  category.id;
+
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() =>
+                      setActiveCategoryId(
+                        category.id,
+                      )
+                    }
+                    className={`shrink-0 whitespace-nowrap rounded-[15px] px-5 py-2 text-sm font-black transition-all duration-200 sm:px-7 sm:py-2.5 sm:text-base ${
+                      isActive
+                        ? "bg-[#121358] text-white shadow-md"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-[#121358]"
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* Right Arrow */}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() =>
+                scrollCategories("right")
+              }
+              aria-label="Scroll categories right"
+              className="absolute right-1 top-1/2 z-20 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-[#121358] shadow-md transition hover:bg-[#121358] hover:text-white sm:right-2 sm:flex sm:h-10 sm:w-10"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className="h-4 w-4 sm:h-5 sm:w-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Error */}
@@ -397,7 +593,7 @@ export default function ProductsByCategory() {
                 Products By Category
               </p>
 
-              <h3 className="mt-1 text-2xl font-black text-[#121358]">
+              <h3 className="mt-1 text-2xl font-black text-[#121358] sm:text-3xl">
                 {activeCategory.name}
               </h3>
             </div>

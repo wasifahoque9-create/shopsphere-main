@@ -178,19 +178,24 @@ class UpdateProductRequest extends FormRequest
             |--------------------------------------------------------------------------
             | Product images
             |--------------------------------------------------------------------------
+            |
+            | Maximum 8 images.
+            | Each image can be maximum 5 MB.
+            |
             */
 
             'images' => [
                 'sometimes',
                 'nullable',
                 'array',
+                'max:8',
             ],
 
             'images.*' => [
                 'file',
                 'image',
-                'mimes:jpg,jpeg,png,webp,gif',
-                'max:10240',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
             ],
 
             /*
@@ -246,65 +251,68 @@ class UpdateProductRequest extends FormRequest
     /**
      * Get custom validation messages.
      */
-   public function messages(): array
-{
-    return [
-        'category_id.required' =>
-            'Please select a product subcategory.',
+    public function messages(): array
+    {
+        return [
+            'category_id.required' =>
+                'Please select a product subcategory.',
 
-        'category_id.integer' =>
-            'The selected product subcategory is invalid.',
+            'category_id.integer' =>
+                'The selected product subcategory is invalid.',
 
-        'category_id.exists' =>
-            'The selected product category must be a valid subcategory.',
+            'category_id.exists' =>
+                'The selected product category must be a valid subcategory.',
 
-        'name.required' =>
-            'The product name is required.',
+            'name.required' =>
+                'The product name is required.',
 
-        'price.required' =>
-            'The product price is required.',
+            'price.required' =>
+                'The product price is required.',
 
-        'price.min' =>
-            'The product price cannot be negative.',
+            'price.min' =>
+                'The product price cannot be negative.',
 
-        'discount_price.min' =>
-            'The discount price cannot be negative.',
+            'discount_price.min' =>
+                'The discount price cannot be negative.',
 
-        'discount_price.lte' =>
-            'The discount price cannot be greater than the regular price.',
+            'discount_price.lte' =>
+                'The discount price cannot be greater than the regular price.',
 
-        'stock_qty.required' =>
-            'The product stock quantity is required.',
+            'stock_qty.required' =>
+                'The product stock quantity is required.',
 
-        'stock_qty.min' =>
-            'The product stock quantity cannot be negative.',
+            'stock_qty.min' =>
+                'The product stock quantity cannot be negative.',
 
-        'slug.unique' =>
-            'Another product is already using this slug.',
+            'slug.unique' =>
+                'Another product is already using this slug.',
 
-        'sku.unique' =>
-            'Another product is already using this SKU.',
+            'sku.unique' =>
+                'Another product is already using this SKU.',
 
-        'warranty_months.min' =>
-            'Warranty months cannot be negative.',
+            'warranty_months.min' =>
+                'Warranty months cannot be negative.',
 
-        'warranty_months.max' =>
-            'Warranty cannot exceed 240 months.',
+            'warranty_months.max' =>
+                'Warranty cannot exceed 240 months.',
 
-        'images.*.image' =>
-            'Every uploaded file must be a valid image.',
+            'images.max' =>
+                'You may upload a maximum of 8 images.',
 
-        'images.*.mimes' =>
-            'Images must be JPG, JPEG, PNG, WebP, or GIF.',
+            'images.*.image' =>
+                'Every uploaded file must be a valid image.',
 
-        'images.*.max' =>
-            'Each image must not be larger than 10 MB.',
+            'images.*.mimes' =>
+                'Images must be JPG, JPEG, PNG, or WebP.',
 
-        'variants.*.variant_name.required' =>
-            'Every variant must contain a variant name.',
+            'images.*.max' =>
+                'Each image must not be larger than 5 MB.',
 
-        'variants.*.variant_value.required' =>
-            'Every variant must contain a variant value.',
-    ];
-}
+            'variants.*.variant_name.required' =>
+                'Every variant must contain a variant name.',
+
+            'variants.*.variant_value.required' =>
+                'Every variant must contain a variant value.',
+        ];
+    }
 }

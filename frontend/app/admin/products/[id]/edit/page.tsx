@@ -1127,15 +1127,15 @@ export default function EditProductPage() {
     }
 
     const oversizedFile =
-      files.find(
-        (file) =>
-          file.size >
-          4 * 1024 * 1024,
-      );
+  files.find(
+    (file) =>
+      file.size >
+      5 * 1024 * 1024,
+     );
 
     if (oversizedFile) {
       setError(
-        "Each image must not be larger than 4 MB.",
+        "Each image must not be larger than 5 MB.",
       );
 
       event.target.value = "";
@@ -1679,7 +1679,7 @@ export default function EditProductPage() {
 
             <p className="mt-2 text-xs text-slate-500">
               Maximum 8 images and
-              4 MB per image.
+              5 MB per image.
             </p>
 
             {selectedPreviews.length >

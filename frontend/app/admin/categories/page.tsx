@@ -174,8 +174,8 @@ export default function AdminCategoriesPage() {
       return;
     }
 
-    if (file.size > 4 * 1024 * 1024) {
-      alert("Image size must be less than 4 MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size must be less than 5 MB.");
       e.target.value = "";
       return;
     }
@@ -473,7 +473,7 @@ export default function AdminCategoriesPage() {
               />
 
               <p className="mt-1.5 text-xs text-muted">
-                JPG, JPEG, PNG or WEBP. Maximum size: 4 MB.
+                JPG, JPEG, PNG or WEBP. Maximum size: 5 MB.
               </p>
             </div>
 

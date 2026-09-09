@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use Cloudinary\Cloudinary;
-
 use App\Enums\ProductStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Product\StoreProductRequest;
@@ -13,9 +11,12 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\ImageManager;
 use Throwable;
 
 class ProductController extends Controller
@@ -1195,98 +1196,215 @@ class ProductController extends Controller
     |--------------------------------------------------------------------------
     | Upload product image
     |--------------------------------------------------------------------------
+    |
+    | Every uploaded image is processed through Intervention Image.
+    |
+    | Main image:
+    |     maximum 1600 x 1600
+    |
+    | Thumbnail:
+    |     maximum 500 x 500
+    |
+    | The original extension is preserved:
+    |     .jpg  -> .jpg
+    |     .jpeg -> .jpeg
+    |     .png  -> .png
+    |     .webp -> .webp
+    |
+    | Aspect ratio is preserved.
+    | Small images are never enlarged.
+    |
     */
 
     private function uploadProductImage(
-        $image
+        UploadedFile $image
     ): array {
-        $cloudinaryUrl = env(
-            'CLOUDINARY_URL'
+        /*
+        |--------------------------------------------------------------------------
+        | Create Intervention Image manager using GD
+        |--------------------------------------------------------------------------
+        */
+
+        $manager = new ImageManager(
+            new GdDriver()
         );
 
         /*
         |--------------------------------------------------------------------------
-        | Cloudinary
+        | Get original extension
         |--------------------------------------------------------------------------
         */
 
-        if ($cloudinaryUrl) {
-            $cloudinary = new Cloudinary(
-                $cloudinaryUrl
+        $extension = strtolower(
+            $image->getClientOriginalExtension()
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Allowed image formats
+        |--------------------------------------------------------------------------
+        */
+
+        $allowedExtensions = [
+            'jpg',
+            'jpeg',
+            'png',
+            'webp',
+        ];
+
+        if (!in_array(
+            $extension,
+            $allowedExtensions,
+            true
+        )) {
+            throw new \RuntimeException(
+                'Unsupported image format.'
             );
-
-            $uploadedFile = $cloudinary
-                ->uploadApi()
-                ->upload(
-                    $image->getRealPath(),
-                    [
-                        'folder' =>
-                            'shopsphere/products',
-
-                        'resource_type' =>
-                            'image',
-
-                        'eager' => [
-                            [
-                                'width' =>
-                                    500,
-
-                                'height' =>
-                                    500,
-
-                                'crop' =>
-                                    'fill',
-
-                                'gravity' =>
-                                    'auto',
-
-                                'format' =>
-                                    'jpg',
-                            ],
-                        ],
-                    ]
-                );
-
-            $thumbnailPath = null;
-
-            if (
-                isset(
-                    $uploadedFile['eager']
-                ) &&
-                !empty(
-                    $uploadedFile['eager'][0]['secure_url']
-                )
-            ) {
-                $thumbnailPath =
-                    $uploadedFile['eager'][0]['secure_url'];
-            }
-
-            return [
-                'image_path' =>
-                    $uploadedFile['secure_url'],
-
-                'thumbnail_path' =>
-                    $thumbnailPath,
-            ];
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Local storage fallback
+        | Generate unique filename
         |--------------------------------------------------------------------------
         */
 
-        $imagePath = $image->store(
-            'products',
-            'public'
+        $filename = (string) Str::uuid();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Keep the exact original extension
+        |--------------------------------------------------------------------------
+        */
+
+        $imagePath =
+            "products/{$filename}.{$extension}";
+
+        $thumbnailPath =
+            "products/thumbnails/{$filename}.{$extension}";
+
+        /*
+        |--------------------------------------------------------------------------
+        | Decode and process main image
+        |--------------------------------------------------------------------------
+        |
+        | scaleDown() preserves the aspect ratio and never enlarges
+        | an image that is already smaller than the specified dimensions.
+        |
+        */
+
+        $mainImage = $manager
+            ->decodeSplFileInfo($image)
+            ->scaleDown(
+                width: 1600,
+                height: 1600
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Decode and process thumbnail
+        |--------------------------------------------------------------------------
+        */
+
+        $thumbnailImage = $manager
+            ->decodeSplFileInfo($image)
+            ->scaleDown(
+                width: 500,
+                height: 500
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Encode main image
+        |--------------------------------------------------------------------------
+        |
+        | JPEG:
+        |     quality 85
+        |
+        | PNG:
+        |     PNG encoding
+        |
+        | WebP:
+        |     quality 85
+        |
+        | For .jpeg files, the stored filename remains .jpeg even though
+        | the encoder uses the JPEG format.
+        |
+        */
+
+        $mainEncoded = match ($extension) {
+            'jpg',
+            'jpeg' => $mainImage->encodeUsingFileExtension(
+                'jpg',
+                quality: 85
+            ),
+
+            'png' => $mainImage->encodeUsingFileExtension(
+                'png'
+            ),
+
+            'webp' => $mainImage->encodeUsingFileExtension(
+                'webp',
+                quality: 85
+            ),
+        };
+
+        /*
+        |--------------------------------------------------------------------------
+        | Encode thumbnail
+        |--------------------------------------------------------------------------
+        */
+
+        $thumbnailEncoded = match ($extension) {
+            'jpg',
+            'jpeg' => $thumbnailImage->encodeUsingFileExtension(
+                'jpg',
+                quality: 85
+            ),
+
+            'png' => $thumbnailImage->encodeUsingFileExtension(
+                'png'
+            ),
+
+            'webp' => $thumbnailImage->encodeUsingFileExtension(
+                'webp',
+                quality: 85
+            ),
+        };
+
+        /*
+        |--------------------------------------------------------------------------
+        | Store processed main image
+        |--------------------------------------------------------------------------
+        */
+
+        Storage::disk('public')->put(
+            $imagePath,
+            (string) $mainEncoded
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Store processed thumbnail
+        |--------------------------------------------------------------------------
+        */
+
+        Storage::disk('public')->put(
+            $thumbnailPath,
+            (string) $thumbnailEncoded
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Return paths for database
+        |--------------------------------------------------------------------------
+        */
 
         return [
             'image_path' =>
                 $imagePath,
 
             'thumbnail_path' =>
-                null,
+                $thumbnailPath,
         ];
     }
 

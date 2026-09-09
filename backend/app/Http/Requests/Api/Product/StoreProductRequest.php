@@ -152,8 +152,8 @@ class StoreProductRequest extends FormRequest
                 'required',
                 Rule::in([
                     'active',
+                    'inactive',
                     'draft',
-                    'archived',
                 ]),
             ],
 
@@ -174,7 +174,7 @@ class StoreProductRequest extends FormRequest
                 'required',
                 'image',
                 'mimes:jpg,jpeg,png,webp',
-                'max:4096',
+                'max:5120',
             ],
         ];
     }

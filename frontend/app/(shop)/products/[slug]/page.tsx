@@ -429,20 +429,33 @@ export default function ProductDetailPage() {
 
         if (!pageIsActive) return;
 
-        setProduct(productData);
-        setReviews(reviewData);
+      setProduct(productData);
+      setReviews(reviewData);
 
-        setActiveImage(
-          getProductImage(productData),
-        );
+/*
+ * The product-detail hero image should use
+ * the optimized MAIN image, not the thumbnail.
+ *
+ * image.url = optimized main image (max 1600x1600)
+ */
+const primaryImage =
+  productData.images?.find(
+    (image) => image.is_primary,
+  ) ??
+  productData.images?.[0];
 
-        if (
-          productData.variants?.length
-        ) {
-          setSelectedVariant(
-            productData.variants[0],
-          );
-        }
+setActiveImage(
+  primaryImage?.url ??
+    getProductImage(productData),
+);
+
+if (
+  productData.variants?.length
+) {
+  setSelectedVariant(
+    productData.variants[0],
+  );
+}
       } catch (error) {
         console.error(
           "Unable to load product:",
@@ -676,6 +689,7 @@ export default function ProductDetailPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Breadcrumb */}
+           {/* Breadcrumb */}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-4 text-sm text-slate-500 sm:px-6 lg:px-8">
           <Link
@@ -693,6 +707,20 @@ export default function ProductDetailPage() {
           >
             Products
           </Link>
+
+          {product.category?.name &&
+            product.category?.slug && (
+              <>
+                <FaChevronRight size={10} />
+
+                <Link
+                  href={`/categories/${product.category.slug}`}
+                  className="transition hover:text-[#EA580C]"
+                >
+                  {product.category.name}
+                </Link>
+              </>
+            )}
 
           <FaChevronRight size={10} />
 
@@ -735,16 +763,23 @@ export default function ProductDetailPage() {
 
             {images.length > 1 && (
               <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-                {images.map((image) => {
-                  const source =
-                    image.url ||
-                    getProductImage({
-                      ...product,
-                      images: [image],
-                    });
+               {images.map((image) => {
+  /*
+   * Small gallery buttons should use the
+   * optimized thumbnail image.
+   *
+   * thumbnail_url = max 500x500
+   */
+  const source =
+    image.thumbnail_url ||
+    image.url ||
+    getProductImage({
+      ...product,
+      images: [image],
+    });
 
-                  const selected =
-                    activeImage === source;
+  const selected =
+    activeImage === source;
 
                   return (
                     <button
@@ -752,8 +787,15 @@ export default function ProductDetailPage() {
                       type="button"
                       aria-label={`View another image of ${product.name}`}
                       onClick={() =>
-                        setActiveImage(source)
-                      }
+  setActiveImage(
+    image.url ||
+      image.thumbnail_url ||
+      getProductImage({
+        ...product,
+        images: [image],
+      }),
+  )
+}
                       className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-white p-1.5 transition ${
                         selected
                           ? "border-[#EA580C] shadow-md"

@@ -240,8 +240,8 @@ export default function AdminProductsPage() {
               >
                 <option value="">All statuses</option>
                 <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
                 <option value="draft">Draft</option>
-                <option value="archived">Archived</option>
               </select>
 
               <label

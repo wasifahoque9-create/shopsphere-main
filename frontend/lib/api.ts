@@ -228,8 +228,16 @@ export function getProductImage(
   }
 
   /*
-   * Laravel ProductImageResource already provides
-   * a complete public URL.
+   * Prefer the optimized thumbnail for product
+   * cards, tables, and other small image displays.
+   */
+  if (selectedImage.thumbnail_url) {
+    return selectedImage.thumbnail_url;
+  }
+
+  /*
+   * Fall back to the optimized main image when
+   * thumbnail_url is not available.
    */
   if (selectedImage.url) {
     return selectedImage.url;
@@ -260,7 +268,6 @@ export function getProductImage(
 
   return "/placeholder-product.svg";
 }
-
 export function formatPrice(
   amount: number,
 ): string {

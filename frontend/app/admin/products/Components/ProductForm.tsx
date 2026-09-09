@@ -501,7 +501,7 @@ export default function ProductForm() {
       return;
     }
 
-    const maximumSize = 4 * 1024 * 1024;
+    const maximumSize = 5 * 1024 * 1024;
 
     const oversizedFile =
       selectedFiles.find(
@@ -510,7 +510,7 @@ export default function ProductForm() {
 
     if (oversizedFile) {
       setError(
-        "Each image must not be larger than 4 MB.",
+        "Each image must not be larger than 5 MB.",
       );
 
       setImages([]);
@@ -942,17 +942,19 @@ export default function ProductForm() {
             }
             className={`${inputClass} bg-white`}
           >
-            <option value="active">
-              Active
-            </option>
+           <option value="active">
+                   Active
+               </option>
 
-            <option value="draft">
+           <option value="inactive">
+                   Inactive
+              </option>
+
+         <option value="draft">
               Draft
-            </option>
+               </option>
 
-            <option value="archived">
-              Archived
-            </option>
+            
           </select>
         </div>
       </div>
@@ -997,7 +999,7 @@ export default function ProductForm() {
 
         <p className="mt-2 text-xs text-gray-500">
           Select JPG, JPEG, PNG, or WebP files.
-          Maximum 8 images and 4 MB per image.
+          Maximum 8 images and 5 MB per image.
           The first image will be the primary
           image.
         </p>

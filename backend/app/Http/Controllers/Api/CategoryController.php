@@ -9,9 +9,12 @@ use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\ImageManager;
 
 class CategoryController extends Controller
 {
@@ -78,12 +81,16 @@ class CategoryController extends Controller
         }
 
         /*
-         * Upload category image if provided.
+         * Upload and process category image if provided.
+         *
+         * Only one processed image is stored.
+         * Maximum dimensions: 500 x 500.
+         * Aspect ratio is preserved.
          */
         if ($request->hasFile('image')) {
-            $data['image_path'] = $request
-                ->file('image')
-                ->store('categories', 'public');
+            $data['image_path'] = $this->uploadCategoryImage(
+                $request->file('image')
+            );
         }
 
         /*
@@ -160,7 +167,9 @@ class CategoryController extends Controller
         }
 
         /*
-         * Upload a new category image.
+         * Upload and process a new category image.
+         *
+         * The previous processed image is deleted first.
          */
         if ($request->hasFile('image')) {
             if (
@@ -174,9 +183,9 @@ class CategoryController extends Controller
                 );
             }
 
-            $data['image_path'] = $request
-                ->file('image')
-                ->store('categories', 'public');
+            $data['image_path'] = $this->uploadCategoryImage(
+                $request->file('image')
+            );
         }
 
         /*
@@ -301,5 +310,97 @@ class CategoryController extends Controller
             'message' =>
                 'Category and its subcategories deleted successfully.',
         ]);
+    }
+
+    /**
+     * Process and store a category image.
+     *
+     * Only one processed image is stored for each category.
+     *
+     * Maximum dimensions: 500 x 500.
+     * Aspect ratio is preserved.
+     * Smaller images are not enlarged.
+     *
+     * JPEG/JPG: quality 85
+     * PNG: PNG encoding
+     * WebP: quality 85
+     */
+    private function uploadCategoryImage(
+        UploadedFile $image
+    ): string {
+        $manager = new ImageManager(
+            new GdDriver()
+        );
+
+        $extension = strtolower(
+            $image->getClientOriginalExtension()
+        );
+
+        $allowedExtensions = [
+            'jpg',
+            'jpeg',
+            'png',
+            'webp',
+        ];
+
+        if (!in_array(
+            $extension,
+            $allowedExtensions,
+            true
+        )) {
+            throw new \RuntimeException(
+                'Unsupported image format.'
+            );
+        }
+
+        $filename = (string) Str::uuid();
+
+        $imagePath =
+            "categories/{$filename}.{$extension}";
+
+        /*
+         * Resize the image to a maximum of 500 x 500
+         * while preserving the original aspect ratio.
+         *
+         * scaleDown() also prevents smaller images
+         * from being enlarged.
+         */
+        $processedImage = $manager
+            ->decodeSplFileInfo($image)
+            ->scaleDown(
+                width: 500,
+                height: 500
+            );
+
+        /*
+         * Encode the processed image using the same
+         * format/quality approach as ProductController.
+         */
+        $encoded = match ($extension) {
+            'jpg',
+            'jpeg' => $processedImage->encodeUsingFileExtension(
+                'jpg',
+                quality: 85
+            ),
+
+            'png' => $processedImage->encodeUsingFileExtension(
+                'png'
+            ),
+
+            'webp' => $processedImage->encodeUsingFileExtension(
+                'webp',
+                quality: 85
+            ),
+        };
+
+        /*
+         * Store only the processed image.
+         */
+        Storage::disk('public')->put(
+            $imagePath,
+            (string) $encoded
+        );
+
+        return $imagePath;
     }
 }
